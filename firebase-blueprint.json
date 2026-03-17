@@ -1,0 +1,145 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "System user with role-based access control.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the user." },
+        "email": { "type": "string", "format": "email", "description": "Email address." },
+        "role": { "type": "string", "enum": ["admin", "technician"], "description": "Access level." },
+        "uid": { "type": "string", "description": "Firebase Auth UID." }
+      },
+      "required": ["name", "email", "role", "uid"]
+    },
+    "Client": {
+      "title": "Client",
+      "description": "Customer of SmartTech IoT.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "address": { "type": "string" },
+        "city": { "type": "string" },
+        "type": { "type": "string", "enum": ["residential", "business"] },
+        "observations": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "type"]
+    },
+    "Service": {
+      "title": "Service",
+      "description": "Service record or Budget.",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "type": { "type": "string", "enum": ["automation", "cameras", "network", "maintenance"] },
+        "date": { "type": "string", "format": "date-time" },
+        "technician": { "type": "string" },
+        "value": { "type": "number", "description": "Total value of the service." },
+        "budgetValue": { "type": "number", "description": "Estimated budget for the service." },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "completed"], "description": "Current state of the OS/Budget." },
+        "description": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "description": { "type": "string" },
+              "quantity": { "type": "number" },
+              "unitValue": { "type": "number" }
+            }
+          }
+        }
+      },
+      "required": ["clientId", "type", "date", "status"]
+    },
+    "Equipment": {
+      "title": "Equipment",
+      "description": "IoT device installed at client site.",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "type": { "type": "string" },
+        "brand": { "type": "string" },
+        "model": { "type": "string" },
+        "location": { "type": "string" },
+        "installDate": { "type": "string", "format": "date-time" },
+        "observations": { "type": "string" }
+      },
+      "required": ["clientId", "type", "brand"]
+    },
+    "Material": {
+      "title": "Material",
+      "description": "Product or material for sale and inventory.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "brand": { "type": "string" },
+        "category": { "type": "string" },
+        "purchaseCost": { "type": "number" },
+        "sellingPrice": { "type": "number" },
+        "stock": { "type": "number" },
+        "unit": { "type": "string", "enum": ["un", "m", "kg", "cx"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "purchaseCost", "sellingPrice"]
+    },
+    "Schedule": {
+      "title": "Schedule",
+      "description": "Technical visit schedule.",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "type": { "type": "string", "enum": ["installation", "maintenance", "diagnostic"] },
+        "date": { "type": "string", "format": "date-time" },
+        "notes": { "type": "string" },
+        "status": { "type": "string", "enum": ["scheduled", "completed", "cancelled"] }
+      },
+      "required": ["clientId", "type", "date"]
+    },
+    "Finance": {
+      "title": "Finance",
+      "description": "Financial transaction.",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "serviceId": { "type": "string" },
+        "value": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "status": { "type": "string", "enum": ["paid", "pending"] },
+        "date": { "type": "string", "format": "date-time" }
+      },
+      "required": ["value", "status", "date"]
+    },
+    "NetworkDiagnostic": {
+      "title": "Network Diagnostic",
+      "description": "Network issue report.",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "problemType": { "type": "string" },
+        "description": { "type": "string" },
+        "solution": { "type": "string" },
+        "equipment": { "type": "string" },
+        "observations": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" }
+      },
+      "required": ["clientId", "problemType", "date"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "System users." },
+    "/clients/{clientId}": { "schema": "Client", "description": "Customer database." },
+    "/services/{serviceId}": { "schema": "Service", "description": "Service history." },
+    "/equipments/{equipmentId}": { "schema": "Equipment", "description": "Installed IoT devices." },
+    "/schedules/{scheduleId}": { "schema": "Schedule", "description": "Technical agenda." },
+    "/finances/{financeId}": { "schema": "Finance", "description": "Financial records." },
+    "/diagnostics/{diagnosticId}": { "schema": "NetworkDiagnostic", "description": "Network diagnostic reports." },
+    "/materials/{materialId}": { "schema": "Material", "description": "Materials and products catalog." }
+  }
+}

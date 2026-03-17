@@ -1,0 +1,169 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Fields:
+//   - name: string (required)
+//   - email: string (required, email format)
+//   - role: string (required, enum: ['admin', 'technician'])
+//   - uid: string (required, immutable)
+//
+// Collection: clients
+// Fields:
+//   - name: string (required)
+//   - phone: string
+//   - whatsapp: string
+//   - email: string
+//   - address: string
+//   - city: string
+//   - type: string (required, enum: ['residential', 'business'])
+//   - observations: string
+//   - createdAt: timestamp (required, immutable)
+//
+// Collection: services
+// Fields:
+//   - clientId: string (required)
+//   - clientName: string
+//   - type: string (required, enum: ['automation', 'cameras', 'network', 'maintenance'])
+//   - date: timestamp (required)
+//   - technician: string
+//   - value: number
+//   - budgetValue: number
+//   - status: string (required, enum: ['budget', 'approved', 'completed', 'cancelled'])
+//   - description: string
+//   - items: list (objects with description, quantity, unitValue)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "ananiasfeliciano1@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['name', 'email', 'role', 'uid']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'technician'] &&
+             data.uid is string;
+    }
+
+    function isValidClient(data) {
+      return hasRequiredFields(['name', 'type']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.type in ['residential', 'business'] &&
+             (!('email' in data) || isValidEmail(data.email));
+    }
+
+    function isValidService(data) {
+      return hasRequiredFields(['clientId', 'type', 'date', 'status']) &&
+             data.type in ['automation', 'cameras', 'network', 'maintenance'] &&
+             data.status in ['pending', 'approved', 'rejected', 'completed'] &&
+             (!('value' in data) || data.value is number) &&
+             (!('budgetValue' in data) || data.budgetValue is number) &&
+             (!('items' in data) || data.items is list);
+    }
+
+    function isValidMaterial(data) {
+      return hasRequiredFields(['name', 'purchaseCost', 'sellingPrice']) &&
+             data.name is string && data.name.size() > 0 &&
+             data.purchaseCost is number &&
+             data.sellingPrice is number;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role));
+      allow delete: if isAdmin();
+    }
+
+    match /clients/{clientId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidClient(request.resource.data);
+      allow update: if isAuthenticated() && isValidClient(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /services/{serviceId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidService(request.resource.data);
+      allow update: if isAuthenticated() && isValidService(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /equipments/{equipmentId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    match /schedules/{scheduleId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    match /finances/{financeId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    match /diagnostics/{diagnosticId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    match /materials/{materialId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidMaterial(request.resource.data);
+      allow update: if isAuthenticated() && isValidMaterial(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@theme {
+  --color-tech-blue: #0A84FF;
+  --color-tech-green: #22C55E;
+  --color-tech-black: #0B0F19;
+  --color-tech-gray: #1F2937;
+}
+
+@layer base {
+  body {
+    @apply bg-tech-black text-white antialiased;
+  }
+}
