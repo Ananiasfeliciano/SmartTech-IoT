@@ -1,19 +1,14 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import Dashboard from './pages/Dashboard';
-import Clients from './pages/Clients';
-import Services from './pages/Services';
-import Equipment from './pages/Equipment';
-import Schedule from './pages/Schedule';
-import Finance from './pages/Finance';
-import Diagnostics from './pages/Diagnostics';
-import Login from './pages/Login';
+import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { modules } from './data/osData';
+import Login from './pages/Login';
+import OperationalPage from './pages/OperationalPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="flex items-center justify-center h-screen">Loading...</div>;
+  if (loading) return <div className="grid h-screen place-items-center bg-[#020812] text-white">Carregando SMARTTECH IoT OS...</div>;
   return user ? <>{children}</> : <Navigate to="/login" />;
 }
 
@@ -29,13 +24,9 @@ export default function App() {
               <PrivateRoute>
                 <Layout>
                   <Routes>
-                    <Route path="/" element={<Dashboard />} />
-                    <Route path="/clients" element={<Clients />} />
-                    <Route path="/services" element={<Services />} />
-                    <Route path="/equipment" element={<Equipment />} />
-                    <Route path="/schedule" element={<Schedule />} />
-                    <Route path="/finance" element={<Finance />} />
-                    <Route path="/diagnostics" element={<Diagnostics />} />
+                    {modules.map((module) => (
+                      <Route key={module.id} path={module.path} element={<OperationalPage module={module} />} />
+                    ))}
                     <Route path="*" element={<Navigate to="/" />} />
                   </Routes>
                 </Layout>

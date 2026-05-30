@@ -57,3 +57,13 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
+
+export function createAdminUserProfile({ uid, name, email }: { uid: string, name: string, email: string }) {
+  return {
+    uid,
+    name,
+    email,
+    role: 'admin',
+    createdAt: new Date().toISOString(),
+  };
+}

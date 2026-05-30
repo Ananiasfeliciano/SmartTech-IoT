@@ -1,63 +1,72 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
-import { auth, db } from '../firebase';
+import { onAuthStateChanged, User, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase';
 
 interface AuthContextType {
-  user: User | null;
+  user: any | null;
   profile: any | null;
   loading: boolean;
-  signIn: () => Promise<void>;
+  signIn: (login: string, password: string) => Promise<void>;
+  registerAdmin: (login: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      if (user) {
-        const docRef = doc(db, 'users', user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setProfile(docSnap.data());
-        } else {
-          // Create default profile for new user
-          const newProfile = {
-            uid: user.uid,
-            name: user.displayName || 'User',
-            email: user.email,
-            role: user.email === 'ananiasfeliciano1@gmail.com' ? 'admin' : 'technician',
-            createdAt: new Date().toISOString(),
-          };
-          await setDoc(docRef, newProfile);
-          setProfile(newProfile);
-        }
-      } else {
-        setProfile(null);
-      }
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    // Simula persistência local (não seguro para produção!)
+    const stored = localStorage.getItem('adminUser');
+    if (stored) {
+      setUser(JSON.parse(stored));
+      setProfile(JSON.parse(stored));
+    }
+    setLoading(false);
   }, []);
 
-  const signIn = async () => {
-    const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+  const signIn = async (login: string, password: string) => {
+    const stored = localStorage.getItem('adminUser');
+    if (!stored) throw new Error('Nenhum admin cadastrado.');
+    const admin = JSON.parse(stored);
+    if (admin.login === login && admin.password === password) {
+      setUser(admin);
+      setProfile(admin);
+      localStorage.setItem('adminUser', JSON.stringify(admin));
+    } else {
+      throw new Error('Login ou senha inválidos.');
+    }
+  };
+
+  // Função para registrar o primeiro admin
+  const registerAdmin = async (login: string, password: string, name: string) => {
+    if (localStorage.getItem('adminUser')) {
+      throw new Error('Já existe um administrador cadastrado.');
+    }
+    const adminProfile = {
+      login,
+      password,
+      name,
+      role: 'admin',
+      createdAt: new Date().toISOString(),
+    };
+    localStorage.setItem('adminUser', JSON.stringify(adminProfile));
+    setUser(adminProfile);
+    setProfile(adminProfile);
   };
 
   const logout = async () => {
-    await signOut(auth);
+    setUser(null);
+    setProfile(null);
+    localStorage.removeItem('adminUser');
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, logout }}>
+    <AuthContext.Provider value={{ user, profile, loading, signIn, registerAdmin, logout }}>
       {children}
     </AuthContext.Provider>
   );

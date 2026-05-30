@@ -1,3 +1,4 @@
+dotenv.config();
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
@@ -8,10 +9,20 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = 3001;
 
 app.use(express.json());
 app.use(cookieParser());
+
+// Endpoint para checar se existe admin cadastrado
+app.get('/api/check-admin', async (req, res) => {
+  try {
+    const adminCheck = await (await import('firebase-admin')).firestore().doc('users/admin-check').get();
+    res.json({ exists: adminCheck.exists });
+  } catch (e) {
+    res.json({ exists: false });
+  }
+});
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
