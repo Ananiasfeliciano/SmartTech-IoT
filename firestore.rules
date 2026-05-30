@@ -184,6 +184,10 @@ service cloud.firestore {
       allow read: if isAuthenticated() && isAdmin();
       allow create: if isAuthenticated();
     }
+    match /securityLogs/{id} {
+      allow read: if isAuthenticated() && isAdmin();
+      allow create: if true; // permite log de tentativas não autenticadas (ex: brute force)
+    }
 
     // Default deny
     match /{path=**} {

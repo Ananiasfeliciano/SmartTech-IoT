@@ -1,8 +1,11 @@
-import { LockKeyhole, Wifi } from 'lucide-react';
-import { useState } from 'react';
+import { LockKeyhole, Shield, Wifi } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
+import { getRateLimitStatus, recordFailedAttempt, clearRateLimit } from '../lib/rateLimit';
+import { validatePasswordStrength, isValidEmail } from '../lib/sanitize';
+import { logLoginSuccess, logLoginFailure, logRateLimitBlock } from '../services/securityLogger';
 
 export default function Login() {
   const { user, signIn, registerAdmin, loading } = useAuth();
@@ -12,31 +15,85 @@ export default function Login() {
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [blockLabel, setBlockLabel] = useState('');
+
+  // Atualiza o countdown do bloqueio em tempo real
+  useEffect(() => {
+    if (!blockLabel) return;
+    const interval = setInterval(() => {
+      const status = getRateLimitStatus(email.toLowerCase().trim());
+      if (!status.blocked) {
+        setBlockLabel('');
+        setError(null);
+        clearInterval(interval);
+      } else {
+        setBlockLabel(status.remainingLabel);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [blockLabel, email]);
 
   if (loading) return null;
   if (user) return <Navigate to="/" />;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setSubmitting(true);
     setError(null);
+
+    const emailKey = email.toLowerCase().trim();
+
+    // Verificar rate limit antes de qualquer chamada
+    const rlStatus = getRateLimitStatus(emailKey);
+    if (rlStatus.blocked) {
+      setBlockLabel(rlStatus.remainingLabel);
+      setError(`Conta temporariamente bloqueada por segurança. Tente novamente em ${rlStatus.remainingLabel}.`);
+      logRateLimitBlock(emailKey, rlStatus.remainingLabel);
+      return;
+    }
+
+    // Validações client-side
+    if (!isValidEmail(email)) { setError('Informe um e-mail válido.'); return; }
+
+    if (isRegistering) {
+      if (!name.trim()) { setError('Informe seu nome.'); return; }
+      const pwError = validatePasswordStrength(password);
+      if (pwError) { setError(pwError); return; }
+    } else {
+      if (password.length < 6) { setError('Senha muito curta.'); return; }
+    }
+
+    setSubmitting(true);
     try {
       if (isRegistering) {
         await registerAdmin(email, password, name);
       } else {
         await signIn(email, password);
+        clearRateLimit(emailKey);
+        // Log será feito via onAuthStateChanged no AuthContext; aqui apenas referência
       }
-    } catch (err: any) {
-      const code = err?.code ?? '';
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code ?? '';
+      let message: string;
+
       if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
-        setError('E-mail ou senha inválidos.');
+        const updated = recordFailedAttempt(emailKey);
+        logLoginFailure(emailKey, code, updated.attemptsLeft);
+        if (updated.blocked) {
+          setBlockLabel(updated.remainingLabel);
+          message = `Muitas tentativas incorretas. Tente novamente em ${updated.remainingLabel}.`;
+        } else {
+          message = `E-mail ou senha inválidos. ${updated.attemptsLeft > 0 ? `Tentativas restantes: ${updated.attemptsLeft}.` : ''}`;
+        }
       } else if (code === 'auth/email-already-in-use') {
-        setError('Este e-mail já está cadastrado. Faça login.');
+        message = 'Este e-mail já está cadastrado. Faça login.';
       } else if (code === 'auth/weak-password') {
-        setError('A senha deve ter no mínimo 6 caracteres.');
+        message = 'A senha deve ter no mínimo 6 caracteres.';
+      } else if (code === 'auth/too-many-requests') {
+        message = 'Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.';
       } else {
-        setError(err?.message ?? 'Erro ao autenticar. Tente novamente.');
+        message = (err as Error)?.message ?? 'Erro ao autenticar. Tente novamente.';
       }
+      setError(message);
     } finally {
       setSubmitting(false);
     }
@@ -61,7 +118,19 @@ export default function Login() {
             <input className="os-input" placeholder="Nome do Administrador" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
           )}
           <input className="os-input" type="email" placeholder="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus={!isRegistering} />
-          <input className="os-input" type="password" placeholder="Senha" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <input className="os-input" type="password" placeholder={isRegistering ? 'Senha (mín. 8 chars, 1 maiúscula, 1 número)' : 'Senha'} value={password} onChange={(e) => setPassword(e.target.value)} required />
+          {isRegistering && password.length > 0 && (
+            <div className="flex gap-1">
+              {[
+                password.length >= 8,
+                /[A-Z]/.test(password),
+                /[0-9]/.test(password),
+                password.length >= 12,
+              ].map((ok, i) => (
+                <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${ok ? 'bg-emerald-500' : 'bg-slate-700'}`} />
+              ))}
+            </div>
+          )}
           {error && <div className="rounded-lg border border-red-400/20 bg-red-500/10 px-4 py-3 text-center text-sm text-red-200">{error}</div>}
           <button type="submit" disabled={submitting} className="os-button os-button-primary w-full justify-center py-3 disabled:opacity-60">
             {submitting ? (isRegistering ? 'Cadastrando...' : 'Entrando...') : (isRegistering ? 'Cadastrar' : 'Entrar')}
@@ -85,6 +154,10 @@ export default function Login() {
               <button type="button" onClick={() => { setIsRegistering(true); setError(null); }} className="text-blue-400 hover:underline">Cadastrar administrador</button>
             </>
           )}
+        </p>
+        <p className="mt-4 flex items-center justify-center gap-1 text-center text-[10px] text-white/20">
+          <Shield className="h-3 w-3" />
+          Dados protegidos conforme LGPD · Acesso monitorado e registrado
         </p>
       </motion.div>
     </div>
