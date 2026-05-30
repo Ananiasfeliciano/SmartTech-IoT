@@ -6,28 +6,37 @@ import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
   const { user, signIn, registerAdmin, loading } = useAuth();
-  const [login, setLogin] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const adminRegistered = !!localStorage.getItem('adminUser');
 
   if (loading) return null;
-  if (user && adminRegistered) return <Navigate to="/" />;
+  if (user) return <Navigate to="/" />;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
-      if (!adminRegistered) {
-        await registerAdmin(login, password, name);
+      if (isRegistering) {
+        await registerAdmin(email, password, name);
       } else {
-        await signIn(login, password);
+        await signIn(email, password);
       }
-    } catch {
-      setError('Login ou senha invalidos ou erro ao cadastrar.');
+    } catch (err: any) {
+      const code = err?.code ?? '';
+      if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        setError('E-mail ou senha inválidos.');
+      } else if (code === 'auth/email-already-in-use') {
+        setError('Este e-mail já está cadastrado. Faça login.');
+      } else if (code === 'auth/weak-password') {
+        setError('A senha deve ter no mínimo 6 caracteres.');
+      } else {
+        setError(err?.message ?? 'Erro ao autenticar. Tente novamente.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -48,14 +57,14 @@ export default function Login() {
           <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Sistema Operacional</p>
         </div>
         <form className="space-y-4" onSubmit={handleSubmit}>
-          {!adminRegistered && (
-            <input className="os-input" placeholder="Nome do Administrador" value={name} onChange={(event) => setName(event.target.value)} required autoFocus />
+          {isRegistering && (
+            <input className="os-input" placeholder="Nome do Administrador" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
           )}
-          <input className="os-input" placeholder="Login do Administrador" value={login} onChange={(event) => setLogin(event.target.value)} required autoFocus={adminRegistered} />
-          <input className="os-input" type="password" placeholder="Senha" value={password} onChange={(event) => setPassword(event.target.value)} required />
+          <input className="os-input" type="email" placeholder="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus={!isRegistering} />
+          <input className="os-input" type="password" placeholder="Senha" value={password} onChange={(e) => setPassword(e.target.value)} required />
           {error && <div className="rounded-lg border border-red-400/20 bg-red-500/10 px-4 py-3 text-center text-sm text-red-200">{error}</div>}
           <button type="submit" disabled={submitting} className="os-button os-button-primary w-full justify-center py-3 disabled:opacity-60">
-            {submitting ? (!adminRegistered ? 'Cadastrando...' : 'Entrando...') : (!adminRegistered ? 'Cadastrar' : 'Login')}
+            {submitting ? (isRegistering ? 'Cadastrando...' : 'Entrando...') : (isRegistering ? 'Cadastrar' : 'Entrar')}
           </button>
         </form>
         <div className="relative py-4">
@@ -67,9 +76,15 @@ export default function Login() {
           <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3"><LockKeyhole className="mb-2 h-4 w-4 text-blue-300" />Admin OS</div>
         </div>
         <p className="text-center text-xs text-white/35">
-          Sistema de gestao profissional para automacao e IoT.<br />
-          Acesso exclusivo para tecnicos autorizados.<br />
-          Primeiro acesso: cadastre o administrador.
+          {isRegistering ? (
+            <>Já tem uma conta?{' '}
+              <button type="button" onClick={() => { setIsRegistering(false); setError(null); }} className="text-blue-400 hover:underline">Fazer login</button>
+            </>
+          ) : (
+            <>Primeiro acesso?{' '}
+              <button type="button" onClick={() => { setIsRegistering(true); setError(null); }} className="text-blue-400 hover:underline">Cadastrar administrador</button>
+            </>
+          )}
         </p>
       </motion.div>
     </div>

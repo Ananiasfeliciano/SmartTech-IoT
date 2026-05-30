@@ -34,6 +34,11 @@ import {
 } from 'lucide-react';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { dashboardStats, ModuleConfig, OsRecord, statusTone } from '../data/osData';
+import { useFirestoreRecords } from '../hooks/useFirestoreRecords';
+import { validateRecord } from '../lib/validation';
+import { triggerIntegration } from '../services/integrationService';
+import { useAuth } from '../context/AuthContext';
+import { hasPermission } from '../lib/permissions';
 
 type FormState = Omit<OsRecord, 'id'>;
 
@@ -70,27 +75,14 @@ const priorityClass = (priority: string) => {
   return 'bg-slate-500/20 text-slate-200 border-white/10';
 };
 
-const useModuleRecords = (module: ModuleConfig) => {
-  const storageKey = `smarttech-os-${module.id}`;
-  const [records, setRecords] = useState<OsRecord[]>(() => {
-    const stored = localStorage.getItem(storageKey);
-    return stored ? JSON.parse(stored) : module.records;
-  });
-
-  useEffect(() => {
-    const stored = localStorage.getItem(storageKey);
-    setRecords(stored ? JSON.parse(stored) : module.records);
-  }, [storageKey, module.records]);
-
-  useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(records));
-  }, [records, storageKey]);
-
-  return [records, setRecords] as const;
-};
 
 export default function OperationalPage({ module }: { module: ModuleConfig }) {
-  const [records, setRecords] = useModuleRecords(module);
+  const { records, loading, addRecord, updateRecord, removeRecord } = useFirestoreRecords(module);
+  const { profile } = useAuth();
+  const userRole = profile?.role ?? 'visualizador';
+  const canCreate = hasPermission(userRole, module.id, 'create');
+  const canEdit = hasPermission(userRole, module.id, 'edit');
+  const canDelete = hasPermission(userRole, module.id, 'delete');
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('Todos');
   const [category, setCategory] = useState('Todos');
@@ -100,6 +92,7 @@ export default function OperationalPage({ module }: { module: ModuleConfig }) {
   const [selectedId, setSelectedId] = useState(records[0]?.id || '');
   const [form, setForm] = useState<FormState>(() => emptyRecord(module));
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
   const pageSize = 8;
 
   const categories = useMemo(() => ['Todos', ...Array.from(new Set(records.map((record) => record.categoria)))], [records]);
@@ -133,6 +126,7 @@ export default function OperationalPage({ module }: { module: ModuleConfig }) {
   }, [module.title, records]);
 
   const openCreate = () => {
+    if (!canCreate) { alert('Você não tem permissão para criar registros neste módulo.'); return; }
     setEditing(null);
     setForm(emptyRecord(module));
     setError('');
@@ -140,6 +134,7 @@ export default function OperationalPage({ module }: { module: ModuleConfig }) {
   };
 
   const openEdit = (record: OsRecord) => {
+    if (!canEdit) { alert('Você não tem permissão para editar registros neste módulo.'); return; }
     setEditing(record);
     const { id: _id, ...rest } = record;
     setForm(rest);
@@ -147,40 +142,51 @@ export default function OperationalPage({ module }: { module: ModuleConfig }) {
     setModalOpen(true);
   };
 
-  const saveRecord = (event: React.FormEvent) => {
+  const saveRecord = async (event: React.FormEvent) => {
     event.preventDefault();
-    const missing = module.fields.find((field) => field.required && !String((form as any)[field.key] ?? '').trim());
-    if (missing) {
-      setError(`Preencha o campo obrigatorio: ${missing.label}.`);
-      return;
+    const validationError = validateRecord({ ...form, valor: Number(form.valor) });
+    if (validationError) { setError(validationError); return; }
+    setSaving(true);
+    try {
+      const data = { ...form, valor: Number(form.valor) };
+      if (editing) {
+        await updateRecord(editing.id, data);
+        await triggerIntegration(module.id, editing, data);
+        setSelectedId(editing.id);
+      } else {
+        const id = await addRecord(data);
+        setSelectedId(id);
+      }
+      setModalOpen(false);
+      setError('');
+    } catch (e: unknown) {
+      setError((e as Error).message ?? 'Erro ao salvar. Tente novamente.');
+    } finally {
+      setSaving(false);
     }
-    if (Number(form.valor) < 0) {
-      setError('O valor nao pode ser negativo.');
-      return;
-    }
-    if (editing) {
-      setRecords((current) => current.map((record) => (record.id === editing.id ? { ...form, id: editing.id, valor: Number(form.valor) } : record)));
-      setSelectedId(editing.id);
-    } else {
-      const newRecord = { ...form, id: `${module.id}-${Date.now()}`, valor: Number(form.valor) };
-      setRecords((current) => [newRecord, ...current]);
-      setSelectedId(newRecord.id);
-    }
-    setModalOpen(false);
   };
 
-  const deleteRecord = (id: string) => {
+  const deleteRecord = async (id: string) => {
+    if (!canDelete) { alert('Você não tem permissão para excluir registros.'); return; }
     const record = records.find((item) => item.id === id);
     if (!record || !confirm(`Excluir ${record.codigo}?`)) return;
-    const next = records.filter((item) => item.id !== id);
-    setRecords(next);
-    setSelectedId(next[0]?.id || '');
+    try {
+      await removeRecord(id, record.titulo);
+      setSelectedId(records.filter((r) => r.id !== id)[0]?.id || '');
+    } catch (e: unknown) {
+      alert(`Erro ao excluir: ${(e as Error).message}`);
+    }
   };
 
-  const duplicateRecord = (record: OsRecord) => {
-    const copy = { ...record, id: `${module.id}-${Date.now()}`, codigo: `${record.codigo}-C`, titulo: `${record.titulo} (copia)`, status: 'Pendente' };
-    setRecords((current) => [copy, ...current]);
-    setSelectedId(copy.id);
+  const duplicateRecord = async (record: OsRecord) => {
+    if (!canCreate) { alert('Você não tem permissão para duplicar registros.'); return; }
+    const { id: _id, ...data } = record;
+    try {
+      const id = await addRecord({ ...data, codigo: `${data.codigo}-C`, titulo: `${data.titulo} (copia)`, status: 'Pendente' });
+      setSelectedId(id);
+    } catch (e: unknown) {
+      alert(`Erro ao duplicar: ${(e as Error).message}`);
+    }
   };
 
   if (module.id === 'dashboard') {
@@ -189,7 +195,7 @@ export default function OperationalPage({ module }: { module: ModuleConfig }) {
         <DashboardView module={module} records={records} openCreate={openCreate} />
         <AnimatePresence>
           {modalOpen && (
-            <RecordModal module={module} form={form} setForm={setForm} error={error} editing={editing} close={() => setModalOpen(false)} saveRecord={saveRecord} />
+            <RecordModal module={module} form={form} setForm={setForm} error={error} editing={editing} close={() => setModalOpen(false)} saveRecord={saveRecord} saving={saving} />
           )}
         </AnimatePresence>
       </>
@@ -201,7 +207,7 @@ export default function OperationalPage({ module }: { module: ModuleConfig }) {
       <>
         <AutomationView module={module} records={records} openCreate={openCreate} openEdit={openEdit} duplicateRecord={duplicateRecord} deleteRecord={deleteRecord} />
         <AnimatePresence>
-          {modalOpen && <RecordModal module={module} form={form} setForm={setForm} error={error} editing={editing} close={() => setModalOpen(false)} saveRecord={saveRecord} />}
+          {modalOpen && <RecordModal module={module} form={form} setForm={setForm} error={error} editing={editing} close={() => setModalOpen(false)} saveRecord={saveRecord} saving={saving} />}
         </AnimatePresence>
       </>
     );
@@ -212,7 +218,7 @@ export default function OperationalPage({ module }: { module: ModuleConfig }) {
       <>
         <WifiView module={module} records={filteredRecords} query={query} setQuery={setQuery} openCreate={openCreate} openEdit={openEdit} duplicateRecord={duplicateRecord} deleteRecord={deleteRecord} />
         <AnimatePresence>
-          {modalOpen && <RecordModal module={module} form={form} setForm={setForm} error={error} editing={editing} close={() => setModalOpen(false)} saveRecord={saveRecord} />}
+          {modalOpen && <RecordModal module={module} form={form} setForm={setForm} error={error} editing={editing} close={() => setModalOpen(false)} saveRecord={saveRecord} saving={saving} />}
         </AnimatePresence>
       </>
     );
@@ -223,11 +229,13 @@ export default function OperationalPage({ module }: { module: ModuleConfig }) {
       <>
         <ContractsView module={module} records={filteredRecords} query={query} setQuery={setQuery} openCreate={openCreate} openEdit={openEdit} duplicateRecord={duplicateRecord} deleteRecord={deleteRecord} selected={selected} />
         <AnimatePresence>
-          {modalOpen && <RecordModal module={module} form={form} setForm={setForm} error={error} editing={editing} close={() => setModalOpen(false)} saveRecord={saveRecord} />}
+          {modalOpen && <RecordModal module={module} form={form} setForm={setForm} error={error} editing={editing} close={() => setModalOpen(false)} saveRecord={saveRecord} saving={saving} />}
         </AnimatePresence>
       </>
     );
   }
+
+  if (loading) return <div className="grid h-full place-items-center py-20 text-slate-400">Carregando {module.title}…</div>;
 
   return (
     <div className="space-y-5">
@@ -239,7 +247,7 @@ export default function OperationalPage({ module }: { module: ModuleConfig }) {
         <div className="flex flex-wrap gap-3">
           <button className="os-button os-button-muted"><Download className="h-4 w-4" />Exportar</button>
           <button className="os-button os-button-muted"><FileText className="h-4 w-4" />Relatorio</button>
-          <button className="os-button os-button-primary" onClick={openCreate}><Plus className="h-5 w-5" />{module.primaryAction}</button>
+          {canCreate && <button className="os-button os-button-primary" onClick={openCreate}><Plus className="h-5 w-5" />{module.primaryAction}</button>}
         </div>
       </header>
 
@@ -292,9 +300,9 @@ export default function OperationalPage({ module }: { module: ModuleConfig }) {
                     <td>
                       <div className="flex items-center gap-1">
                         <button className="os-icon-button" onClick={(event) => { event.stopPropagation(); setSelectedId(record.id); }} title="Ver"><Eye className="h-4 w-4" /></button>
-                        <button className="os-icon-button" onClick={(event) => { event.stopPropagation(); openEdit(record); }} title="Editar"><Edit3 className="h-4 w-4" /></button>
-                        <button className="os-icon-button" onClick={(event) => { event.stopPropagation(); duplicateRecord(record); }} title="Duplicar"><Copy className="h-4 w-4" /></button>
-                        <button className="os-icon-button danger" onClick={(event) => { event.stopPropagation(); deleteRecord(record.id); }} title="Excluir"><Trash2 className="h-4 w-4" /></button>
+                        {canEdit && <button className="os-icon-button" onClick={(event) => { event.stopPropagation(); openEdit(record); }} title="Editar"><Edit3 className="h-4 w-4" /></button>}
+                        {canCreate && <button className="os-icon-button" onClick={(event) => { event.stopPropagation(); duplicateRecord(record); }} title="Duplicar"><Copy className="h-4 w-4" /></button>}
+                        {canDelete && <button className="os-icon-button danger" onClick={(event) => { event.stopPropagation(); deleteRecord(record.id); }} title="Excluir"><Trash2 className="h-4 w-4" /></button>}
                         <button className="os-icon-button" title="Mais"><MoreVertical className="h-4 w-4" /></button>
                       </div>
                     </td>
@@ -319,7 +327,7 @@ export default function OperationalPage({ module }: { module: ModuleConfig }) {
 
       <AnimatePresence>
         {modalOpen && (
-          <RecordModal module={module} form={form} setForm={setForm} error={error} editing={editing} close={() => setModalOpen(false)} saveRecord={saveRecord} />
+          <RecordModal module={module} form={form} setForm={setForm} error={error} editing={editing} close={() => setModalOpen(false)} saveRecord={saveRecord} saving={saving} />
         )}
       </AnimatePresence>
     </div>
@@ -672,7 +680,7 @@ function Detail({ label, value, wide }: { label: string; value: string; wide?: b
   return <div className={wide ? 'col-span-2' : ''}><div className="mb-1 text-xs text-slate-400">{label}</div><div className="text-slate-100">{value}</div></div>;
 }
 
-function RecordModal({ module, form, setForm, error, editing, close, saveRecord }: { module: ModuleConfig; form: FormState; setForm: React.Dispatch<React.SetStateAction<FormState>>; error: string; editing: OsRecord | null; close: () => void; saveRecord: (event: React.FormEvent) => void }) {
+function RecordModal({ module, form, setForm, error, editing, close, saveRecord, saving = false }: { module: ModuleConfig; form: FormState; setForm: React.Dispatch<React.SetStateAction<FormState>>; error: string; editing: OsRecord | null; close: () => void; saveRecord: (event: React.FormEvent) => void; saving?: boolean }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <motion.div className="absolute inset-0 bg-black/70 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={close} />
@@ -687,7 +695,7 @@ function RecordModal({ module, form, setForm, error, editing, close, saveRecord 
           })}
         </div>
         {error && <div className="mx-5 mb-3 rounded-lg border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>}
-        <div className="flex flex-wrap justify-end gap-3 border-t border-white/10 p-5"><button type="button" className="os-button os-button-muted" onClick={close}>Cancelar</button><button type="button" className="os-button os-button-muted"><Send className="h-4 w-4" />Enviar</button><button type="submit" className="os-button os-button-primary"><Check className="h-4 w-4" />Salvar</button></div>
+        <div className="flex flex-wrap justify-end gap-3 border-t border-white/10 p-5"><button type="button" className="os-button os-button-muted" onClick={close}>Cancelar</button><button type="button" className="os-button os-button-muted"><Send className="h-4 w-4" />Enviar</button><button type="submit" className="os-button os-button-primary" disabled={saving}>{saving ? 'Salvando…' : <><Check className="h-4 w-4" />Salvar</>}</button></div>
       </motion.form>
     </div>
   );

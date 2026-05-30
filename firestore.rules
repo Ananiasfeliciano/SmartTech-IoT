@@ -159,6 +159,32 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ===============================================================
+    // Módulos do SmartTech IoT OS — acesso para usuários autenticados
+    // Controle granular de permissões é feito na camada da aplicação.
+    // ===============================================================
+    match /clientes/{id} { allow read, write: if isAuthenticated(); }
+    match /orcamentos/{id} { allow read, write: if isAuthenticated(); }
+    match /ordens/{id} { allow read, write: if isAuthenticated(); }
+    match /prontuarios/{id} { allow read, write: if isAuthenticated(); }
+    match /mapa/{id} { allow read, write: if isAuthenticated(); }
+    match /produtos/{id} { allow read, write: if isAuthenticated(); }
+    match /kits/{id} { allow read, write: if isAuthenticated(); }
+    match /estoque/{id} { allow read, write: if isAuthenticated(); }
+    match /financeiro/{id} { allow read, write: if isAuthenticated(); }
+    match /notas/{id} { allow read, write: if isAuthenticated(); }
+    match /relatorios/{id} { allow read, write: if isAuthenticated(); }
+    match /configuracoes/{id} { allow read, write: if isAuthenticated(); }
+    match /usuarios/{id} { allow read, write: if isAuthenticated(); }
+    match /contratos/{id} { allow read, write: if isAuthenticated(); }
+    match /automacao/{id} { allow read, write: if isAuthenticated(); }
+    match /wifi/{id} { allow read, write: if isAuthenticated(); }
+    match /dashboard/{id} { allow read, write: if isAuthenticated(); }
+    match /auditLogs/{id} {
+      allow read: if isAuthenticated() && isAdmin();
+      allow create: if isAuthenticated();
+    }
+
     // Default deny
     match /{path=**} {
       allow read, write: if false;
