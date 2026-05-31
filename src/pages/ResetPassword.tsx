@@ -44,7 +44,7 @@ export default function ResetPassword() {
         setUserEmail(result.email);
         setState('form');
       } else {
-        setState(result.error === 'token_expired' ? 'expired' : 'invalid');
+        setState((result as { valid: false; error: string }).error === 'token_expired' ? 'expired' : 'invalid');
       }
     });
   }, [oobCode, mode]);
@@ -74,10 +74,11 @@ export default function ResetPassword() {
     if (result.success) {
       setState('success');
     } else {
-      if (result.error === 'token_expired') { setState('expired'); return; }
-      if (result.error === 'token_invalid') { setState('invalid'); return; }
-      if (result.error === 'weak_password') { setError('Senha não atende os critérios mínimos.'); return; }
-      setError(result.error ?? 'Erro ao redefinir senha. Tente novamente.');
+      const err = (result as { success: false; error: string }).error;
+      if (err === 'token_expired') { setState('expired'); return; }
+      if (err === 'token_invalid') { setState('invalid'); return; }
+      if (err === 'weak_password') { setError('Senha não atende os critérios mínimos.'); return; }
+      setError(err ?? 'Erro ao redefinir senha. Tente novamente.');
     }
   };
 
