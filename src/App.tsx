@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { modules } from './data/osData';
 import Login from './pages/Login';
 import OperationalPage from './pages/OperationalPage';
+import UsersPage from './pages/UsersPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -24,9 +25,12 @@ export default function App() {
               <PrivateRoute>
                 <Layout>
                   <Routes>
-                    {modules.map((module) => (
-                      <Route key={module.id} path={module.path} element={<OperationalPage module={module} />} />
-                    ))}
+                    {modules
+                      .filter((m) => m.path !== '/usuarios-e-permissoes')
+                      .map((module) => (
+                        <Route key={module.id} path={module.path} element={<OperationalPage module={module} />} />
+                      ))}
+                    <Route path="/usuarios-e-permissoes" element={<UsersPage />} />
                     <Route path="*" element={<Navigate to="/" />} />
                   </Routes>
                 </Layout>
