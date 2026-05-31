@@ -4,6 +4,9 @@ import Layout from './components/Layout';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { modules } from './data/osData';
 import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import RecoverUser from './pages/RecoverUser';
 import OperationalPage from './pages/OperationalPage';
 import UsersPage from './pages/UsersPage';
 
@@ -19,6 +22,9 @@ export default function App() {
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/recover-user" element={<RecoverUser />} />
           <Route
             path="/*"
             element={

@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Search,
   Shield,
+  ShieldCheck,
   Trash2,
   User,
   UserCheck,
@@ -35,6 +36,7 @@ import { hasPermission, ROLE_COLORS, ROLE_LABELS, ROLES, type Role } from '../li
 import { isValidEmail, validatePasswordStrength } from '../lib/sanitize';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { logAdminAction, logPermissionChange } from '../services/securityLogger';
+import TwoFactorSetup from './TwoFactorSetup';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
@@ -111,6 +113,10 @@ export default function UsersPage() {
   // Confirmação de exclusão
   const [confirmDel, setConfirmDel] = useState<{ open: boolean; uid: string; name: string }>({ open: false, uid: '', name: '' });
   const [deleting, setDeleting]     = useState(false);
+
+  // Modal 2FA
+  const [show2FA, setShow2FA] = useState(false);
+  const isAdmin = userRole === 'admin';
 
   // ── Listener Firestore ──────────────────────────────────────────────────
   useEffect(() => {
@@ -219,15 +225,27 @@ export default function UsersPage() {
           <h1 className="text-xl font-bold">Usuários e Permissões</h1>
           <p className="text-sm text-slate-400">Gerencie contas, perfis de acesso e permissões do sistema.</p>
         </div>
-        {canCreate && (
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            Novo Usuário
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <button
+              onClick={() => setShow2FA(true)}
+              className="flex items-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-sm font-medium text-blue-300 hover:bg-blue-500/20 transition-colors"
+              title="Configurar Autenticação 2FA"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              <span className="hidden sm:inline">2FA</span>
+            </button>
+          )}
+          {canCreate && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Novo Usuário
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}
@@ -556,6 +574,33 @@ export default function UsersPage() {
         onConfirm={handleDelete}
         onCancel={() => setConfirmDel({ open: false, uid: '', name: '' })}
       />
+
+      {/* ── Modal: 2FA Setup ─────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {show2FA && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <motion.div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShow2FA(false)} />
+            <motion.div
+              className="relative z-10 w-full max-w-md rounded-2xl border border-white/10 bg-[#0d1526] p-6 shadow-2xl"
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+            >
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-blue-400" />
+                  <span className="font-semibold">Autenticação 2FA</span>
+                </div>
+                <button onClick={() => setShow2FA(false)} className="rounded-lg p-1 text-slate-400 hover:bg-white/10 hover:text-white">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <TwoFactorSetup onClose={() => setShow2FA(false)} />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
