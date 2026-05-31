@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { getRateLimitStatus, recordFailedAttempt, clearRateLimit } from '../lib/rateLimit';
 import { validatePasswordStrength, isValidEmail } from '../lib/sanitize';
 import { logLoginSuccess, logLoginFailure, logRateLimitBlock } from '../services/securityLogger';
+import { checkBruteForce, raiseImmediateAlert } from '../services/securityAlerts';
 
 export default function Login() {
   const { user, signIn, registerAdmin, loading } = useAuth();
@@ -78,8 +79,11 @@ export default function Login() {
       if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
         const updated = recordFailedAttempt(emailKey);
         logLoginFailure(emailKey, code, updated.attemptsLeft);
+        // Item 18 — verificar padrão de brute force e gerar alerta automático
+        checkBruteForce(emailKey);
         if (updated.blocked) {
           setBlockLabel(updated.remainingLabel);
+          raiseImmediateAlert('critical', 'Login Bloqueado por Brute Force', `Rate limit atingido para: ${emailKey}`, emailKey);
           message = `Muitas tentativas incorretas. Tente novamente em ${updated.remainingLabel}.`;
         } else {
           message = `E-mail ou senha inválidos. ${updated.attemptsLeft > 0 ? `Tentativas restantes: ${updated.attemptsLeft}.` : ''}`;

@@ -1,5 +1,5 @@
 dotenv.config();
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { google } from 'googleapis';
@@ -11,8 +11,45 @@ dotenv.config();
 const app = express();
 const PORT = 3001;
 
-app.use(express.json());
+// ── Item 6 — CORS seguro (OWASP API Security Top 10: API7) ───────────────────
+const ALLOWED_ORIGINS: string[] = (
+  process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173'
+).split(',').map(o => o.trim());
+
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const origin = req.headers.origin ?? '';
+  if (ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 h preflight cache
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
+
+// ── Item 15 — Limitar tamanho do body (protege contra DoS payload) ────────────
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: false, limit: '10kb' }));
 app.use(cookieParser());
+
+// ── Item 15 — Security headers do servidor (Node/Express) ────────────────────
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  // Evitar que browsers snifem o tipo de conteúdo
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  // Impedir embedding em iframe (clickjacking)
+  res.setHeader('X-Frame-Options', 'DENY');
+  // XSS filter legado
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  // Não expor tecnologia usada
+  res.removeHeader('X-Powered-By');
+  next();
+});
 
 // Endpoint para checar se existe admin cadastrado
 app.get('/api/check-admin', async (req, res) => {

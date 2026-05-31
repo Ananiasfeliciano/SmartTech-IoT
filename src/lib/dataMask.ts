@@ -10,7 +10,7 @@ export function maskCPF(cpf: string): string {
   return `***.${c.slice(3, 6)}.${c.slice(6, 9)}-**`;
 }
 
-/** CNPJ: oculta filial e dígitos verificadores — ex: 12.345.***/0001-** */
+/** CNPJ: oculta filial e dígitos verificadores — ex: 12.345.xxx/0001-xx */
 export function maskCNPJ(cnpj: string): string {
   const c = cnpj.replace(/\D/g, '');
   if (c.length !== 14) return '**.***/****-**';

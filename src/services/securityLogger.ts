@@ -88,13 +88,15 @@ export function logRateLimitBlock(email: string, remainingLabel: string): Promis
 }
 
 /** Logout */
-export function logLogout(uid: string, email: string): Promise<void> {
+export function logLogout(uid: string, email: string, reason: 'user_action' | 'inactivity_timeout' = 'user_action'): Promise<void> {
   return writeSecurityLog({
     type: 'logout',
     userId: uid,
     userEmail: email,
     result: 'success',
-    detail: 'Sessão encerrada',
+    detail: reason === 'inactivity_timeout'
+      ? 'Sessão encerrada automaticamente por inatividade (30 min)'
+      : 'Sessão encerrada pelo usuário',
   });
 }
 

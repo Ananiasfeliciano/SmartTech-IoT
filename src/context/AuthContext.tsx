@@ -1,7 +1,12 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { logLogout } from '../services/securityLogger';
+
+/** Item 7 — Tempo máximo de inatividade antes de logout automático (ms) */
+const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutos
+const ACTIVITY_EVENTS = ['mousemove', 'keydown', 'pointerdown', 'scroll', 'touchstart'] as const;
 
 interface AuthContextType {
   user: any | null;
@@ -18,6 +23,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** Reinicia o temporizador de inatividade */
+  const resetInactivityTimer = () => {
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    inactivityTimer.current = setTimeout(async () => {
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        await logLogout(currentUser.uid, currentUser.email ?? '', 'inactivity_timeout');
+        await signOut(auth);
+      }
+    }, INACTIVITY_TIMEOUT_MS);
+  };
+
+  /** Registra listeners de atividade do usuário */
+  const attachActivityListeners = () => {
+    ACTIVITY_EVENTS.forEach(evt => window.addEventListener(evt, resetInactivityTimer, { passive: true }));
+  };
+
+  const detachActivityListeners = () => {
+    ACTIVITY_EVENTS.forEach(evt => window.removeEventListener(evt, resetInactivityTimer));
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -29,13 +57,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch {
           setProfile({ email: firebaseUser.email, role: 'admin' });
         }
+        // Inicia monitoramento de inatividade quando o usuário faz login
+        attachActivityListeners();
+        resetInactivityTimer();
       } else {
         setUser(null);
         setProfile(null);
+        detachActivityListeners();
       }
       setLoading(false);
     });
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      detachActivityListeners();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -54,6 +90,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      await logLogout(currentUser.uid, currentUser.email ?? '', 'user_action');
+    }
+    detachActivityListeners();
     await signOut(auth);
   };
 

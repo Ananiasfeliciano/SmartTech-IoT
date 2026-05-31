@@ -36,7 +36,8 @@ export function hasSQLInjection(input: string): boolean {
 
 /** Verifica se a entrada contém padrões de Path Traversal */
 export function hasPathTraversal(input: string): boolean {
-  return /(\.\.(\/|\\)|%2e%2e%2f|%252e%252e%252f)/i.test(input);
+  // Detecta: ../ ..\  URL-encoded (%2e%2e seguido de / ou %2f) e double-encoded
+  return /(\.\.(\/|\\)|%2e%2e(\/|%2f)|%252e%252e%252f)/i.test(input);
 }
 
 /** Remove caracteres de controle e null bytes */

@@ -1,0 +1,9 @@
+{
+  "apiKey": "test-key",
+  "authDomain": "test.firebaseapp.com",
+  "projectId": "test-project",
+  "storageBucket": "test.appspot.com",
+  "messagingSenderId": "123456",
+  "appId": "1:123456:web:abcdef",
+  "firestoreDatabaseId": "test-db"
+}
