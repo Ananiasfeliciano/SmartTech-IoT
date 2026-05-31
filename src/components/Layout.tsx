@@ -8,7 +8,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { profile } = useAuth();
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#020812] text-white">
+    <div className="flex h-screen overflow-hidden bg-tech-black text-white">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_45%_0%,rgba(0,132,255,0.14),transparent_34%),linear-gradient(135deg,#020812_0%,#06101b_48%,#02050c_100%)]" />
 
       <div className="fixed left-0 right-0 top-0 z-40 flex h-16 items-center justify-between border-b border-white/10 bg-[#030914]/90 px-4 backdrop-blur-xl lg:hidden">
@@ -28,10 +28,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </div>
 
       <main className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="hidden h-[74px] shrink-0 items-center justify-between border-b border-white/10 bg-[#030914]/70 px-7 backdrop-blur-xl lg:flex">
+        <header className="hidden h-18.5 shrink-0 items-center justify-between border-b border-white/10 bg-[#030914]/70 px-7 backdrop-blur-xl lg:flex">
           <div className="flex items-center gap-4">
             <button className="os-icon-button"><Menu className="h-5 w-5" /></button>
-            <div className="relative w-[520px] max-w-[44vw]">
+            <div className="relative w-130 max-w-[44vw]">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <input className="os-input h-11 pl-12 pr-24" placeholder="Buscar prontuarios, equipamentos, IP, MAC..." />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md bg-white/5 px-2 py-1 text-xs text-slate-300">CTRL + K</span>

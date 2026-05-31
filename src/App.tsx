@@ -12,7 +12,7 @@ import UsersPage from './pages/UsersPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="grid h-screen place-items-center bg-[#020812] text-white">Carregando SMARTTECH IoT OS...</div>;
+  if (loading) return <div className="grid h-screen place-items-center bg-tech-black text-white">Carregando SMARTTECH IoT OS...</div>;
   return user ? <>{children}</> : <Navigate to="/login" />;
 }
 

@@ -173,7 +173,7 @@ export default function TwoFactorSetup({ onClose }: Props) {
                   <ShieldCheck className="h-4 w-4 shrink-0" />
                   Autenticação 2FA está ativa na sua conta.
                 </div>
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">
+                <div className="rounded-xl border border-white/10 bg-white/3 p-4 text-sm text-slate-300">
                   <p className="mb-1 font-medium">Aplicativos compatíveis:</p>
                   <ul className="list-disc pl-4 text-xs text-slate-400">
                     <li>Google Authenticator</li>
@@ -191,7 +191,7 @@ export default function TwoFactorSetup({ onClose }: Props) {
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm">
+                <div className="rounded-xl border border-white/10 bg-white/3 p-4 text-sm">
                   <p className="mb-2 font-medium text-slate-200">Como funciona:</p>
                   <ol className="list-decimal space-y-1 pl-4 text-xs text-slate-400">
                     <li>Instale Google Authenticator ou Microsoft Authenticator</li>

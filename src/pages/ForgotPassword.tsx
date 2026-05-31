@@ -55,14 +55,14 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#020812] p-4 text-white">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-tech-black p-4 text-white">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_12%,rgba(0,132,255,0.18),transparent_35%),linear-gradient(135deg,#020812,#071525_50%,#02050c)]" />
       <div className="absolute inset-x-0 top-0 h-px bg-blue-400/40" />
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative w-full max-w-md rounded-xl border border-blue-400/20 bg-[#06101b]/90 p-8 shadow-2xl shadow-blue-950/40 backdrop-blur-xl"
+        className="relative w-full max-w-md rounded-xl border border-blue-400/20 bg-tech-gray/90 p-8 shadow-2xl shadow-blue-950/40 backdrop-blur-xl"
       >
         {/* Logo */}
         <div className="mb-8 text-center">
